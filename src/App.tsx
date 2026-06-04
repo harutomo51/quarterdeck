@@ -5,6 +5,7 @@ import { FilePanel } from './components/FilePanel';
 import { TerminalView } from './components/TerminalView';
 import { clampSidePanelWidth, loadSidePanelWidth, saveSidePanelWidth } from './lib/sidePanelLayout';
 import { getAppearanceBridge } from './lib/appearanceBridge';
+import { loadAppearance, saveAppearance, type BackgroundMode } from './lib/appearanceStorage';
 import { normalizeHexColor } from './lib/backgroundColor';
 import { normalizeOpacity } from './lib/opacity';
 import { getTerminalBridge } from './lib/terminalBridge';
@@ -19,8 +20,6 @@ import {
 import type { TerminalTool } from './lib/terminalTool';
 import './styles/terminal.css';
 
-type BackgroundMode = 'aurora' | 'sunset' | 'image' | 'custom';
-
 export type AppLogLevel = 'info' | 'error';
 
 interface TerminalPane {
@@ -31,10 +30,11 @@ interface TerminalPane {
 }
 
 export default function App(): JSX.Element {
-  const [backgroundMode, setBackgroundMode] = useState<BackgroundMode>('aurora');
-  const [customBackgroundColor, setCustomBackgroundColor] = useState('#1f6feb');
-  const [terminalBackgroundColor, setTerminalBackgroundColor] = useState('#05070d');
-  const [terminalOpacity, setTerminalOpacity] = useState(0.78);
+  const initialAppearance = useRef(loadAppearance());
+  const [backgroundMode, setBackgroundMode] = useState<BackgroundMode>(initialAppearance.current.backgroundMode);
+  const [customBackgroundColor, setCustomBackgroundColor] = useState(initialAppearance.current.customBackgroundColor);
+  const [terminalBackgroundColor, setTerminalBackgroundColor] = useState(initialAppearance.current.terminalBackgroundColor);
+  const [terminalOpacity, setTerminalOpacity] = useState(initialAppearance.current.terminalOpacity);
   const [isAppearanceOpen, setAppearanceOpen] = useState(false);
   const [isSidePanelVisible, setSidePanelVisible] = useState(true);
   const [sidePanelWidth, setSidePanelWidth] = useState<number>(() => loadSidePanelWidth());
@@ -182,6 +182,10 @@ export default function App(): JSX.Element {
       return undefined;
     }
   }, [addLog, cycleBackground]);
+
+  useEffect(() => {
+    saveAppearance({ backgroundMode, customBackgroundColor, terminalBackgroundColor, terminalOpacity });
+  }, [backgroundMode, customBackgroundColor, terminalBackgroundColor, terminalOpacity]);
 
   useEffect(() => {
     const bridge = getTerminalBridge();
