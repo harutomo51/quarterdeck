@@ -278,7 +278,12 @@ button {
   padding: 14px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 8px;
-  background: rgba(6, 9, 15, 0.72);
+  /* ターミナル背景色 + 不透明度に追従させ、外観を一致させる */
+  background: color-mix(
+    in srgb,
+    var(--terminal-background-color, #05070d) calc(var(--terminal-opacity, 0.78) * 100%),
+    transparent
+  );
   backdrop-filter: blur(16px);
   overflow: hidden;
 }
