@@ -26,6 +26,7 @@ const terminalApi: TerminalBridgeApi = {
   resize: (payload: TerminalResizePayload) => ipcRenderer.invoke(TERMINAL_CHANNELS.resize, payload) as Promise<void>,
   restart: (paneId: string) => ipcRenderer.invoke(TERMINAL_CHANNELS.restart, { paneId }) as Promise<TerminalStartResult>,
   close: (paneId: string) => ipcRenderer.invoke(TERMINAL_CHANNELS.close, { paneId }) as Promise<void>,
+  readClipboard: () => ipcRenderer.invoke(TERMINAL_CHANNELS.readClipboard) as Promise<string>,
   onData: (callback: (payload: TerminalDataPayload) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: TerminalDataPayload) => callback(payload);
     ipcRenderer.on(TERMINAL_CHANNELS.onData, listener);

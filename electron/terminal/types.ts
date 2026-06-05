@@ -6,7 +6,8 @@ export const TERMINAL_CHANNELS = {
   close: 'terminal:close',
   onData: 'terminal:onData',
   onExit: 'terminal:onExit',
-  onCwdChange: 'terminal:onCwdChange'
+  onCwdChange: 'terminal:onCwdChange',
+  readClipboard: 'terminal:readClipboard'
 } as const;
 
 export type TerminalChannel = (typeof TERMINAL_CHANNELS)[keyof typeof TERMINAL_CHANNELS];
@@ -63,6 +64,7 @@ export interface TerminalBridgeApi {
   resize: (payload: TerminalResizePayload) => Promise<void>;
   restart: (paneId: string) => Promise<TerminalStartResult>;
   close: (paneId: string) => Promise<void>;
+  readClipboard: () => Promise<string>;
   onData: (callback: (payload: TerminalDataPayload) => void) => () => void;
   onExit: (callback: (payload: TerminalExitPayload) => void) => () => void;
   onCwdChange: (callback: (payload: TerminalCwdChangePayload) => void) => () => void;

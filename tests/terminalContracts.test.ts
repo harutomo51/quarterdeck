@@ -11,7 +11,8 @@ describe('TERMINAL_CHANNELS', () => {
       close: 'terminal:close',
       onData: 'terminal:onData',
       onExit: 'terminal:onExit',
-      onCwdChange: 'terminal:onCwdChange'
+      onCwdChange: 'terminal:onCwdChange',
+      readClipboard: 'terminal:readClipboard'
     });
   });
 });

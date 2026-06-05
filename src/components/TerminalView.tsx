@@ -5,7 +5,7 @@ import { SquareSplitHorizontal, SquareSplitVertical, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { AppLogLevel } from '../App';
 import { getTerminalBridge } from '../lib/terminalBridge';
-import { shouldForwardTabToPty } from '../lib/terminalKeys';
+import { shouldForwardTabToPty, shouldPasteFromClipboard } from '../lib/terminalKeys';
 import type { TerminalSplitDirection } from '../lib/terminalLayout';
 import { detectTerminalTool, detectTerminalToolFromOutput, terminalOutputHasPromptMarker, type TerminalTool } from '../lib/terminalTool';
 
@@ -89,6 +89,25 @@ export function TerminalView({
           console.error('Renderer tab IPC failed', inputError);
           setError('Tab key could not be sent to the PTY.');
         });
+        return false;
+      }
+
+      // Ctrl+V はクリップボードのテキストを xterm の paste 経由で注入する。
+      // 生の 0x16 を PTY に送ると Claude Code など raw モードの TUI で貼り付けが効かないため、
+      // ここでエミュレータ側が実際の貼り付け（bracketed paste 対応）を行う。
+      if (event.type === 'keydown' && shouldPasteFromClipboard(event)) {
+        event.preventDefault();
+        bridge
+          .readClipboard()
+          .then((text) => {
+            if (text) {
+              terminal.paste(text);
+            }
+          })
+          .catch((clipboardError: unknown) => {
+            console.error('Renderer clipboard read failed', clipboardError);
+            setError('Clipboard text could not be pasted.');
+          });
         return false;
       }
 

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Menu, type MenuItemConstructorOptions } from 'electron';
+import { app, BrowserWindow, clipboard, ipcMain, Menu, type MenuItemConstructorOptions } from 'electron';
 import { join } from 'node:path';
 import { APPEARANCE_CHANNELS, type AppearanceCommand } from './appearance/types';
 import { openFilePreview } from './filePreview/filePreview';
@@ -141,6 +141,7 @@ function registerIpcHandlers(): void {
   ipcMain.handle(TERMINAL_CHANNELS.close, (_event, payload: TerminalPanePayload) => {
     ptyManager.close(payload.paneId);
   });
+  ipcMain.handle(TERMINAL_CHANNELS.readClipboard, () => clipboard.readText());
   ipcMain.handle(TERMINAL_CHANNELS.input, (_event, payload: TerminalInputPayload) => {
     try {
       ptyManager.write(payload.paneId, payload.data);
