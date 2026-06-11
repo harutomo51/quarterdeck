@@ -22,6 +22,10 @@ Windows 11上で `npm run dev` を実行し、アプリ内のPowerShellプロン
 - [x] `Ctrl+C` が効く
 - [x] 対話CLIが起動できる
 - [x] 終了時にPTYプロセスが残らない
+- [ ] Claude Code 実行中に下部フッターへ 5h / 7d 利用枠バーが表示される
+- [ ] 利用枠バーの色が使用率で変わる（緑 <70% / オレンジ 70–90% / 赤 ≥90%）
+- [ ] Claude Code 停止後 約30秒で利用枠バーが自動的に消える（stale degrade）
+- [ ] `~/.claude/quarterdeck-usage.json` が無い・壊れていてもアプリ動作に影響しない
 
 ## Notes
 
@@ -29,3 +33,4 @@ Windows 11上で `npm run dev` を実行し、アプリ内のPowerShellプロン
 - PowerShell 7がない環境では `powershell.exe` を使います。
 - どちらも見つからない場合は画面上にエラーが表示されます。
 - ファイルツリーは閲覧専用です。
+- 利用枠バーは `~/.claude/statusline.py` が `~/.claude/quarterdeck-usage.json` へ `rate_limits` を書き出すことが前提です（Claude Code の statusline 実行時のみ更新）。ファイルが無い・古い場合はバーは表示されません。

@@ -25,7 +25,9 @@ button {
   --custom-background-color: #1f6feb;
   --terminal-background-color: #05070d;
   position: relative;
-  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
   padding: 14px;
   overflow: hidden;
 }
@@ -194,7 +196,9 @@ button {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 6px var(--side-panel-width);
   gap: 0;
-  height: calc(100vh - 28px);
+  /* app-shell の flex 縦並びで残り高さを全て使う（Usage Bar 表示分は自動で縮む）。 */
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .workspace--side-panel-hidden {
@@ -721,4 +725,70 @@ button {
     height: 2px;
     transform: translateY(-50%);
   }
+}
+
+/* ---- Claude サブスクリプション利用枠バー（UsageBar.tsx） ---- */
+
+.usage-statusbar {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  min-height: 24px;
+  margin-top: 10px;
+  padding: 3px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(6, 9, 15, 0.72);
+  font-size: 11px;
+  color: rgba(246, 248, 255, 0.66);
+}
+
+.usage-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.usage-bar-label {
+  letter-spacing: 0.04em;
+  color: rgba(246, 248, 255, 0.6);
+}
+
+.usage-bar-track {
+  width: 96px;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+
+.usage-bar-fill {
+  height: 100%;
+  transition:
+    width 300ms ease,
+    background-color 150ms ease;
+}
+
+/* 配色はバーの fill だけに当てる。文字色は不変（外観方針）。
+   緑 (<70%) → オレンジ (70–90%) → 赤 (≥90%)。 */
+.usage-bar-fill--green {
+  background: #3fb950;
+}
+
+.usage-bar-fill--orange {
+  background: #d29922;
+}
+
+.usage-bar-fill--red {
+  background: #f85149;
+}
+
+.usage-bar-value {
+  min-width: 32px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: #f6f8ff;
 }

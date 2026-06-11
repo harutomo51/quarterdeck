@@ -9,6 +9,7 @@ import {
 } from './gitCommitDetail/types';
 import { GIT_LOG_CHANNELS, type GitLogBridgeApi, type GitLogResult } from './gitLog/types';
 import { GIT_WORKTREE_CHANNELS, type GitWorktreeBridgeApi, type GitWorktreeResult } from './gitWorktree/types';
+import { USAGE_CHANNELS, type UsageBridgeApi, type UsagePayload } from './usage/types';
 import {
   TERMINAL_CHANNELS,
   type TerminalBridgeApi,
@@ -72,6 +73,14 @@ const appearanceApi: AppearanceBridgeApi = {
   }
 };
 
+const usageApi: UsageBridgeApi = {
+  onUsage: (callback: (payload: UsagePayload) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: UsagePayload) => callback(payload);
+    ipcRenderer.on(USAGE_CHANNELS.onUsage, listener);
+    return () => ipcRenderer.off(USAGE_CHANNELS.onUsage, listener);
+  }
+};
+
 contextBridge.exposeInMainWorld('terminalApi', terminalApi);
 contextBridge.exposeInMainWorld('fileTreeApi', fileTreeApi);
 contextBridge.exposeInMainWorld('filePreviewApi', filePreviewApi);
@@ -79,3 +88,4 @@ contextBridge.exposeInMainWorld('gitLogApi', gitLogApi);
 contextBridge.exposeInMainWorld('gitWorktreeApi', gitWorktreeApi);
 contextBridge.exposeInMainWorld('gitCommitDetailApi', gitCommitDetailApi);
 contextBridge.exposeInMainWorld('appearanceApi', appearanceApi);
+contextBridge.exposeInMainWorld('usageApi', usageApi);

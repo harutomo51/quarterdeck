@@ -3,6 +3,7 @@ import { PanelRightClose, PanelRightOpen } from 'lucide-react';
 import { AppearanceSettings } from './components/AppearanceSettings';
 import { FilePanel } from './components/FilePanel';
 import { TerminalView } from './components/TerminalView';
+import { UsageBar } from './components/UsageBar';
 import { clampSidePanelWidth, loadSidePanelWidth, saveSidePanelWidth } from './lib/sidePanelLayout';
 import { getAppearanceBridge } from './lib/appearanceBridge';
 import { loadAppearance, saveAppearance, type BackgroundMode } from './lib/appearanceStorage';
@@ -331,6 +332,7 @@ export default function App(): JSX.Element {
           </>
         ) : null}
       </section>
+      <UsageBar />
     </main>
   );
 }

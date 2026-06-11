@@ -33,9 +33,10 @@ npm run dist          # build → electron-builder で Windows NSIS + portable �
 - `terminal/shellResolver.ts` — `pwsh.exe` → `powershell.exe` の順で PATH を走査。**他のシェルを許可しない**こと。
 - `terminal/cwdTracker.ts` — PowerShell の `prompt` 関数に OSC 7 (`ESC ]7;file:///… BEL`) を埋め込み、PTY 出力から正規表現で cwd を抽出して `Map` を更新。
 - `appearance/`, `filePreview/`, `fileTree/`, `gitLog/` — 各機能は `types.ts`（IPC チャネル定数と TypeScript の Bridge API 型）+ 実装の2ファイル構成。`*_CHANNELS` 定数は preload と main で共有する単一の真実。
+- `usage/` — Claude サブスクリプション利用枠バーのデータ源。`~/.claude/statusline.py` が書き出す `~/.claude/quarterdeck-usage.json`（固定パス・cwd 信頼境界の外）を `fs.watch` で監視し、`usage:onUsage` で renderer へ push。読み取り専用で、失敗時は静かに degrade（バー非表示）。
 
 ### Preload (`electron/preload.ts`)
-`contextBridge.exposeInMainWorld` で 5 つの API（`terminalApi`, `fileTreeApi`, `filePreviewApi`, `gitLogApi`, `appearanceApi`）を公開。**汎用のコマンド実行 API やファイルシステム API は絶対に追加しない**。`onData` 系は listener 登録時に teardown 関数を返す。
+`contextBridge.exposeInMainWorld` で API（`terminalApi`, `fileTreeApi`, `filePreviewApi`, `gitLogApi`, `appearanceApi`, `usageApi` など）を公開。**汎用のコマンド実行 API やファイルシステム API は絶対に追加しない**。`onData` 系は listener 登録時に teardown 関数を返す。
 
 ### Renderer (`src/`)
 - `App.tsx` — トップレベル状態。ペイン配列 + バイナリツリー（`terminalLayout`）で再帰的にスプリットを描画。サイドパネル幅は localStorage 永続化（`sidePanelLayout.ts`）。

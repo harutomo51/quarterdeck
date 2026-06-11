@@ -12,10 +12,13 @@ import { GIT_LOG_CHANNELS } from './gitLog/types';
 import { readGitWorktrees } from './gitWorktree/gitWorktree';
 import { GIT_WORKTREE_CHANNELS } from './gitWorktree/types';
 import { PtyManager } from './terminal/ptyManager';
+import { USAGE_CHANNELS } from './usage/types';
+import { UsageWatcher } from './usage/usageWatcher';
 import { TERMINAL_CHANNELS, type TerminalInputPayload, type TerminalPanePayload, type TerminalResizePayload, type TerminalStartPayload } from './terminal/types';
 
 let mainWindow: BrowserWindow | null = null;
 const ptyManager = new PtyManager();
+const usageWatcher = new UsageWatcher();
 
 function getApplicationIconPath(): string {
   if (app.isPackaged) {
@@ -54,6 +57,15 @@ function createWindow(): void {
     mainWindow?.webContents.send(TERMINAL_CHANNELS.onCwdChange, payload);
   });
 
+  // renderer のロード完了時に直近の利用枠を初期表示として送る（watch 開始時の
+  // 読み込みは renderer 購読より先に走るため、push だけだと初期値が落ちる）。
+  mainWindow.webContents.on('did-finish-load', () => {
+    const latest = usageWatcher.latest;
+    if (latest) {
+      mainWindow?.webContents.send(USAGE_CHANNELS.onUsage, latest);
+    }
+  });
+
   mainWindow.maximize();
 
   if (process.env.ELECTRON_RENDERER_URL) {
@@ -75,6 +87,10 @@ app.whenReady().then(() => {
   }
 
   registerIpcHandlers();
+  usageWatcher.onUsage((payload) => {
+    mainWindow?.webContents.send(USAGE_CHANNELS.onUsage, payload);
+  });
+  usageWatcher.start();
   createWindow();
   setApplicationMenu();
 
@@ -87,10 +103,12 @@ app.whenReady().then(() => {
 
 app.on('before-quit', () => {
   ptyManager.dispose();
+  usageWatcher.dispose();
 });
 
 app.on('window-all-closed', () => {
   ptyManager.dispose();
+  usageWatcher.dispose();
   if (process.platform !== 'darwin') {
     app.quit();
   }

@@ -7,6 +7,7 @@ import type { GitCommitDetailBridgeApi } from '../electron/gitCommitDetail/types
 import type { GitLogBridgeApi } from '../electron/gitLog/types';
 import type { GitWorktreeBridgeApi } from '../electron/gitWorktree/types';
 import type { AppearanceBridgeApi } from '../electron/appearance/types';
+import type { UsageBridgeApi } from '../electron/usage/types';
 
 declare global {
   interface Window {
@@ -17,5 +18,6 @@ declare global {
     gitWorktreeApi?: GitWorktreeBridgeApi;
     gitCommitDetailApi?: GitCommitDetailBridgeApi;
     appearanceApi?: AppearanceBridgeApi;
+    usageApi?: UsageBridgeApi;
   }
 }
