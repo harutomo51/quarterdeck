@@ -41,6 +41,9 @@ const CODE_EXTENSIONS = new Set([
 
 const MAX_PREVIEW_BYTES = 1_000_000;
 
+// PDFは内蔵ビューアーで描画するため、テキストより大きな上限を許可する。
+const MAX_PDF_PREVIEW_BYTES = 50_000_000;
+
 const HIGHLIGHT_LANGUAGE_BY_EXTENSION = new Map<string, string>([
   ['.bat', 'dos'],
   ['.c', 'c'],
@@ -72,6 +75,9 @@ export function detectPreviewKind(filePath: string): FilePreviewKind {
   }
   if (extension === '.html' || extension === '.htm') {
     return 'html';
+  }
+  if (extension === '.pdf') {
+    return 'pdf';
   }
   if (CODE_EXTENSIONS.has(extension)) {
     return 'code';
@@ -109,11 +115,19 @@ export async function openFilePreview(rootPath: string, relativePath: string): P
       return { ok: false, error: 'ファイルだけプレビューできます。' };
     }
 
-    if (fileStat.size > MAX_PREVIEW_BYTES) {
-      return { ok: false, error: '1MBを超えるファイルはプレビュー対象外です。' };
+    const kind = detectPreviewKind(absolutePath);
+    const isPdf = kind === 'pdf';
+    const maxBytes = isPdf ? MAX_PDF_PREVIEW_BYTES : MAX_PREVIEW_BYTES;
+
+    if (fileStat.size > maxBytes) {
+      return {
+        ok: false,
+        error: isPdf
+          ? '50MBを超えるPDFはプレビュー対象外です。'
+          : '1MBを超えるファイルはプレビュー対象外です。'
+      };
     }
 
-    const content = await readFile(absolutePath, 'utf8');
     const previewWindow = new BrowserWindow({
       width: 920,
       height: 720,
@@ -124,13 +138,22 @@ export async function openFilePreview(rootPath: string, relativePath: string): P
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,
-        sandbox: true
+        sandbox: true,
+        // PDFはChromium内蔵ビューアーで描画する。
+        plugins: isPdf
       }
     });
 
     closeWindowOnEscape(previewWindow);
 
-    await previewWindow.loadURL(createPreviewDataUrl(absolutePath, content, detectPreviewKind(absolutePath)));
+    if (isPdf) {
+      // バイナリのPDFはテキストとして読まず、ファイルを直接開く。
+      await previewWindow.loadFile(absolutePath);
+      return { ok: true };
+    }
+
+    const content = await readFile(absolutePath, 'utf8');
+    await previewWindow.loadURL(createPreviewDataUrl(absolutePath, content, kind));
     return { ok: true };
   } catch (error) {
     console.error('Failed to open file preview', error);

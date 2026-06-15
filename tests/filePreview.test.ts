@@ -21,6 +21,11 @@ describe('detectPreviewKind', () => {
     expect(detectPreviewKind('src/App.tsx')).toBe('code');
     expect(detectPreviewKind('script.ps1')).toBe('code');
   });
+
+  it('detects pdf files', () => {
+    expect(detectPreviewKind('report.pdf')).toBe('pdf');
+    expect(detectPreviewKind('docs/Spec.PDF')).toBe('pdf');
+  });
 });
 
 describe('detectHighlightLanguage', () => {

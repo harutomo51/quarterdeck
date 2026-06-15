@@ -2,7 +2,7 @@ export const FILE_PREVIEW_CHANNELS = {
   open: 'filePreview:open'
 } as const;
 
-export type FilePreviewKind = 'markdown' | 'html' | 'code' | 'text';
+export type FilePreviewKind = 'markdown' | 'html' | 'code' | 'text' | 'pdf';
 
 export interface FilePreviewOpenResult {
   ok: boolean;
