@@ -4,7 +4,12 @@ import { basename, extname, isAbsolute, resolve, sep } from 'node:path';
 import hljs from 'highlight.js/lib/common';
 import MarkdownIt from 'markdown-it';
 import { closeWindowOnEscape } from '../window/closeOnEscape';
+import { openInChrome, openUrlInChrome } from '../window/openInChrome';
 import type { FilePreviewKind, FilePreviewOpenResult } from './types';
+
+// HTMLプレビューの「ブラウザで開く」ボタンが window.open に渡す内部シグナル。
+// 実際に開くファイルは main 側のクロージャで保持し、renderer からは渡させない。
+const OPEN_IN_BROWSER_REQUEST = 'quarterdeck:open-in-browser';
 
 const markdown = new MarkdownIt({
   html: false,
@@ -148,6 +153,32 @@ export async function openFilePreview(rootPath: string, relativePath: string): P
     previewWindow.removeMenu();
     closeWindowOnEscape(previewWindow);
 
+    // ポップアップは一切開かせない。HTMLプレビューの「ブラウザで開く」ボタンだけは
+    // 専用シグナルとして受け取り、プレビュー中のファイルを Chrome で開く。
+    previewWindow.webContents.setWindowOpenHandler(({ url }) => {
+      if (kind === 'html' && url === OPEN_IN_BROWSER_REQUEST) {
+        void openInChrome(absolutePath);
+      }
+      return { action: 'deny' };
+    });
+
+    // プレビュー内のリンク遷移を抑止する。抑止しないと srcdoc iframe 内の相対リンクが
+    // 親の data: URL に対して解決され、プレビュー文書ごと iframe に再読み込みされて
+    // ツールバーが入れ子になる。外部リンク（http/https）は Chrome で開く。
+    let previewLoaded = false;
+    previewWindow.webContents.once('did-finish-load', () => {
+      previewLoaded = true;
+    });
+    previewWindow.webContents.on('will-frame-navigate', (event) => {
+      if (!previewLoaded) {
+        return;
+      }
+      event.preventDefault();
+      if (kind === 'html' && /^https?:\/\//i.test(event.url)) {
+        void openUrlInChrome(event.url);
+      }
+    });
+
     if (isPdf) {
       // バイナリのPDFはテキストとして読まず、ファイルを直接開く。
       await previewWindow.loadFile(absolutePath);
@@ -219,6 +250,38 @@ function createPreviewHtml(filePath: string, content: string, kind: FilePreviewK
         width: 100%;
         margin: 0;
         padding: 0;
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+      }
+      .html-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 8px;
+        padding: 10px 14px;
+        background: var(--preview-soft);
+        border-bottom: 1px solid var(--preview-hairline);
+      }
+      .open-browser-button {
+        appearance: none;
+        border: 1px solid var(--preview-primary);
+        border-radius: 8px;
+        background: var(--preview-primary);
+        color: var(--preview-on-dark);
+        font-family: var(--font-standard);
+        font-size: 13px;
+        font-weight: 500;
+        padding: 7px 14px;
+        cursor: pointer;
+        transition: background 120ms ease, border-color 120ms ease;
+      }
+      .open-browser-button:hover {
+        background: var(--preview-primary-active);
+        border-color: var(--preview-primary-active);
+      }
+      .open-browser-button:active {
+        transform: translateY(1px);
       }
       a { color: var(--preview-primary); text-decoration-thickness: 1px; text-underline-offset: 3px; }
       .preview-card {
@@ -321,7 +384,8 @@ function createPreviewHtml(filePath: string, content: string, kind: FilePreviewK
       iframe {
         display: block;
         width: 100%;
-        height: 100vh;
+        flex: 1;
+        min-height: 0;
         border: 0;
         border-radius: 0;
         background: white;
@@ -340,7 +404,15 @@ function renderPreviewBody(filePath: string, content: string, kind: FilePreviewK
   }
 
   if (kind === 'html') {
-    return `<iframe sandbox="allow-scripts" srcdoc="${escapeAttribute(content)}"></iframe>`;
+    return `<div class="html-toolbar">
+      <button type="button" class="open-browser-button" id="open-in-browser">ブラウザで開く</button>
+    </div>
+    <iframe sandbox="allow-scripts" srcdoc="${escapeAttribute(content)}"></iframe>
+    <script>
+      document.getElementById('open-in-browser')?.addEventListener('click', () => {
+        window.open(${JSON.stringify(OPEN_IN_BROWSER_REQUEST)}, '_blank');
+      });
+    </script>`;
   }
 
   const language = detectHighlightLanguage(filePath);

@@ -96,6 +96,22 @@ describe('createPreviewDataUrl', () => {
     expect(html).not.toContain('<section class="html-preview">');
   });
 
+  it('adds an open-in-browser button to html previews', () => {
+    const dataUrl = createPreviewDataUrl('report.html', '<h1>Report</h1>', 'html');
+    const html = decodeURIComponent(dataUrl.replace('data:text/html;charset=utf-8,', ''));
+
+    expect(html).toContain('id="open-in-browser"');
+    expect(html).toContain('ブラウザで開く');
+    expect(html).toContain('quarterdeck:open-in-browser');
+  });
+
+  it('does not add the open-in-browser button to non-html previews', () => {
+    const dataUrl = createPreviewDataUrl('README.md', '# Doc', 'markdown');
+    const html = decodeURIComponent(dataUrl.replace('data:text/html;charset=utf-8,', ''));
+
+    expect(html).not.toContain('id="open-in-browser"');
+  });
+
   it('uses a wider canvas for non-html previews', () => {
     const dataUrl = createPreviewDataUrl('README.md', '# Wide document', 'markdown');
     const html = decodeURIComponent(dataUrl.replace('data:text/html;charset=utf-8,', ''));
