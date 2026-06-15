@@ -144,6 +144,8 @@ export async function openFilePreview(rootPath: string, relativePath: string): P
       }
     });
 
+    // プレビューウィンドウにアプリメニューを表示しない（Altでの再表示も防ぐ）。
+    previewWindow.removeMenu();
     closeWindowOnEscape(previewWindow);
 
     if (isPdf) {
@@ -207,45 +209,6 @@ function createPreviewHtml(filePath: string, content: string, kind: FilePreviewK
         color: var(--preview-body);
         font-size: 16px;
         line-height: 1.65;
-      }
-      header {
-        position: sticky;
-        top: 0;
-        z-index: 2;
-        padding: 18px 28px;
-        border-bottom: 1px solid var(--preview-hairline);
-        background: rgba(250, 249, 245, .94);
-        backdrop-filter: blur(14px);
-      }
-      header::before {
-        content: "*";
-        display: inline-grid;
-        width: 26px;
-        height: 26px;
-        margin-right: 10px;
-        place-items: center;
-        border-radius: 50%;
-        color: var(--preview-on-dark);
-        background: var(--preview-primary);
-        font-family: var(--font-number);
-        font-size: 22px;
-        line-height: 1;
-        vertical-align: middle;
-      }
-      h1 {
-        display: inline-block;
-        max-width: calc(100% - 44px);
-        margin: 0;
-        overflow: hidden;
-        color: var(--preview-ink);
-        font-family: var(--font-serif);
-        font-size: 24px;
-        font-weight: 500;
-        letter-spacing: 0;
-        line-height: 1.15;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        vertical-align: middle;
       }
       main {
         width: min(100%, 1440px);
@@ -356,8 +319,9 @@ function createPreviewHtml(filePath: string, content: string, kind: FilePreviewK
         color: #d8d4c8;
       }
       iframe {
+        display: block;
         width: 100%;
-        min-height: calc(100vh - 63px);
+        height: 100vh;
         border: 0;
         border-radius: 0;
         background: white;
@@ -365,7 +329,6 @@ function createPreviewHtml(filePath: string, content: string, kind: FilePreviewK
     </style>
   </head>
   <body>
-    <header><h1>${title}</h1></header>
     <main${kind === 'html' ? ' class="html-main"' : ''}>${body}</main>
   </body>
 </html>`;
