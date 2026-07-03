@@ -1,4 +1,4 @@
-﻿import {
+import {
   Braces,
   ChevronDown,
   ChevronRight,
@@ -28,7 +28,7 @@ import { getFileIconKind, type FileIconKind } from '../lib/fileIcon';
 import { getGitCommitDetailBridge } from '../lib/gitCommitDetailBridge';
 import { getFilePreviewBridge } from '../lib/filePreviewBridge';
 import { getFileTreeBridge } from '../lib/fileTreeBridge';
-import { pruneExpandedDirectoryPaths, toggleExpandedDirectoryPath } from '../lib/fileTreeState';
+import { removeDirectoryChildren, setDirectoryChildren, toggleExpandedDirectoryPath } from '../lib/fileTreeState';
 import {
   computeGitGraphLayout,
   type GitGraphEdge,
@@ -69,6 +69,9 @@ interface GitWorktreePanelState {
 export function FilePanel({ activePaneId }: FilePanelProps): JSX.Element {
   const [activeTab, setActiveTab] = useState<SidePanelTab>('files');
   const [expandedDirectoryPaths, setExpandedDirectoryPaths] = useState<Set<string>>(() => new Set());
+  const [childrenByPath, setChildrenByPath] = useState<ReadonlyMap<string, FileTreeNode[]>>(() => new Map());
+  const [loadingPaths, setLoadingPaths] = useState<ReadonlySet<string>>(() => new Set());
+  const [failedPaths, setFailedPaths] = useState<ReadonlyMap<string, string>>(() => new Map());
   const [state, setState] = useState<FilePanelState>({
     rootPath: '',
     nodes: [],
@@ -87,6 +90,13 @@ export function FilePanel({ activePaneId }: FilePanelProps): JSX.Element {
     error: null,
     loading: false
   });
+
+  const resetDirectoryState = useCallback(() => {
+    setExpandedDirectoryPaths(new Set());
+    setChildrenByPath(new Map());
+    setLoadingPaths(new Set());
+    setFailedPaths(new Map());
+  }, []);
 
   const loadFileTree = useCallback(async () => {
     setState((current) => ({ ...current, loading: true, error: null }));
@@ -109,7 +119,6 @@ export function FilePanel({ activePaneId }: FilePanelProps): JSX.Element {
         error: null,
         loading: false
       });
-      setExpandedDirectoryPaths((current) => pruneExpandedDirectoryPaths(current, result.nodes ?? []));
     } catch (error) {
       console.error('Renderer file tree loading failed', error);
       setState({
@@ -120,6 +129,60 @@ export function FilePanel({ activePaneId }: FilePanelProps): JSX.Element {
       });
     }
   }, [activePaneId]);
+
+  const refreshFileTree = useCallback(async () => {
+    const expanded = [...expandedDirectoryPaths];
+    setState((current) => ({ ...current, loading: true, error: null }));
+
+    try {
+      const bridge = getFileTreeBridge();
+      const [rootResult, ...childResults] = await Promise.all([
+        bridge.list(activePaneId),
+        ...expanded.map((path) => bridge.list(activePaneId, path))
+      ]);
+
+      if (!rootResult.ok) {
+        resetDirectoryState();
+        setState({
+          rootPath: rootResult.rootPath ?? '',
+          nodes: [],
+          error: rootResult.error ?? 'ファイル一覧を取得できませんでした。',
+          loading: false
+        });
+        return;
+      }
+
+      const nextCache = new Map<string, FileTreeNode[]>();
+      const nextExpanded = new Set<string>();
+      expanded.forEach((path, index) => {
+        const childResult = childResults[index];
+        if (childResult.ok) {
+          nextCache.set(path, childResult.nodes ?? []);
+          nextExpanded.add(path);
+        }
+      });
+
+      setChildrenByPath(nextCache);
+      setExpandedDirectoryPaths(nextExpanded);
+      setLoadingPaths(new Set());
+      setFailedPaths(new Map());
+      setState({
+        rootPath: rootResult.rootPath ?? '',
+        nodes: rootResult.nodes ?? [],
+        error: null,
+        loading: false
+      });
+    } catch (error) {
+      console.error('Renderer file tree refresh failed', error);
+      resetDirectoryState();
+      setState({
+        rootPath: '',
+        nodes: [],
+        error: error instanceof Error ? error.message : 'ファイル一覧を取得できませんでした。',
+        loading: false
+      });
+    }
+  }, [activePaneId, expandedDirectoryPaths, resetDirectoryState]);
 
   const loadGitLog = useCallback(async () => {
     setGitState((current) => ({ ...current, loading: true, error: null }));
@@ -207,13 +270,54 @@ export function FilePanel({ activePaneId }: FilePanelProps): JSX.Element {
     }
   };
 
-  const toggleDirectory = useCallback((node: FileTreeNode) => {
-    if (node.kind !== 'directory') {
-      return;
-    }
+  const toggleDirectory = useCallback(
+    async (node: FileTreeNode) => {
+      if (node.kind !== 'directory') {
+        return;
+      }
 
-    setExpandedDirectoryPaths((current) => toggleExpandedDirectoryPath(current, node.relativePath));
-  }, []);
+      const path = node.relativePath;
+      const isExpanding = !expandedDirectoryPaths.has(path);
+      setExpandedDirectoryPaths((current) => toggleExpandedDirectoryPath(current, path));
+
+      if (!isExpanding) {
+        return;
+      }
+
+      setFailedPaths((current) => {
+        const next = new Map(current);
+        next.delete(path);
+        return next;
+      });
+
+      if (childrenByPath.has(path)) {
+        return;
+      }
+
+      setLoadingPaths((current) => new Set(current).add(path));
+      try {
+        const result = await getFileTreeBridge().list(activePaneId, path);
+        if (!result.ok) {
+          setFailedPaths((current) => new Map(current).set(path, result.error ?? '読み込みに失敗しました。'));
+          setChildrenByPath((current) => removeDirectoryChildren(current, path));
+        } else {
+          setChildrenByPath((current) => setDirectoryChildren(current, path, result.nodes ?? []));
+        }
+      } catch (error) {
+        console.error('Renderer file tree children loading failed', error);
+        setFailedPaths((current) =>
+          new Map(current).set(path, error instanceof Error ? error.message : '読み込みに失敗しました。')
+        );
+      } finally {
+        setLoadingPaths((current) => {
+          const next = new Set(current);
+          next.delete(path);
+          return next;
+        });
+      }
+    },
+    [activePaneId, childrenByPath, expandedDirectoryPaths]
+  );
 
   const openCommitDetail = useCallback(
     async (hash: string) => {
@@ -237,8 +341,9 @@ export function FilePanel({ activePaneId }: FilePanelProps): JSX.Element {
   );
 
   useEffect(() => {
+    resetDirectoryState();
     void loadFileTree();
-  }, [loadFileTree]);
+  }, [loadFileTree, resetDirectoryState]);
 
   useEffect(() => {
     if (activeTab === 'git') {
@@ -252,6 +357,7 @@ export function FilePanel({ activePaneId }: FilePanelProps): JSX.Element {
   useEffect(() => {
     const removeCwdListener = getTerminalBridge().onCwdChange((payload) => {
       if (payload.paneId === activePaneId) {
+        resetDirectoryState();
         void loadFileTree();
         if (activeTab === 'git') {
           void loadGitLog();
@@ -263,7 +369,7 @@ export function FilePanel({ activePaneId }: FilePanelProps): JSX.Element {
     });
 
     return removeCwdListener;
-  }, [activePaneId, activeTab, loadFileTree, loadGitLog, loadGitWorktrees]);
+  }, [activePaneId, activeTab, loadFileTree, loadGitLog, loadGitWorktrees, resetDirectoryState]);
 
   return (
     <section className="file-panel" aria-label="current directory files">
@@ -303,7 +409,7 @@ export function FilePanel({ activePaneId }: FilePanelProps): JSX.Element {
           <h2>Files</h2>
           <p title={state.rootPath}>{state.rootPath || '現在のディレクトリ'}</p>
         </div>
-        <button type="button" title="ファイル一覧を更新" onClick={() => void loadFileTree()}>
+        <button type="button" title="ファイル一覧を更新" onClick={() => void refreshFileTree()}>
           <RefreshCw size={16} />
         </button>
       </div>
@@ -317,8 +423,11 @@ export function FilePanel({ activePaneId }: FilePanelProps): JSX.Element {
           <FileTree
             nodes={state.nodes}
             expandedDirectoryPaths={expandedDirectoryPaths}
+            childrenByPath={childrenByPath}
+            loadingPaths={loadingPaths}
+            failedPaths={failedPaths}
             onPreview={openPreview}
-            onToggleDirectory={toggleDirectory}
+            onToggleDirectory={(node) => void toggleDirectory(node)}
           />
         ) : null}
       </div>
@@ -614,20 +723,31 @@ function FileTree({
   nodes,
   depth = 0,
   expandedDirectoryPaths,
+  childrenByPath,
+  loadingPaths,
+  failedPaths,
   onPreview,
   onToggleDirectory
 }: {
   nodes: FileTreeNode[];
   depth?: number;
-  expandedDirectoryPaths: Set<string>;
+  expandedDirectoryPaths: ReadonlySet<string>;
+  childrenByPath: ReadonlyMap<string, FileTreeNode[]>;
+  loadingPaths: ReadonlySet<string>;
+  failedPaths: ReadonlyMap<string, string>;
   onPreview: (node: FileTreeNode) => void;
   onToggleDirectory: (node: FileTreeNode) => void;
 }): JSX.Element {
+  const notePaddingLeft = `${depth * 12 + 40}px`;
+
   return (
     <ul className="file-tree">
       {nodes.map((node) => {
-        const hasChildren = Boolean(node.children?.length);
-        const isExpanded = node.kind === 'directory' && expandedDirectoryPaths.has(node.relativePath);
+        const isDirectory = node.kind === 'directory';
+        const isExpanded = isDirectory && expandedDirectoryPaths.has(node.relativePath);
+        const children = childrenByPath.get(node.relativePath);
+        const isLoading = loadingPaths.has(node.relativePath);
+        const failure = failedPaths.get(node.relativePath);
         const rowClassName = [
           'file-tree__row',
           `file-tree__row--${node.kind}`,
@@ -637,22 +757,34 @@ function FileTree({
         return (
           <li className="file-tree__item" key={node.relativePath}>
             <button
-              aria-expanded={node.kind === 'directory' ? isExpanded : undefined}
+              aria-expanded={isDirectory ? isExpanded : undefined}
               className={rowClassName}
               title={node.kind === 'file' ? `${node.relativePath} をプレビュー` : node.relativePath}
               type="button"
               style={{ paddingLeft: `${depth * 12}px` }}
-              onClick={() => (node.kind === 'directory' ? onToggleDirectory(node) : onPreview(node))}
+              onClick={() => (isDirectory ? onToggleDirectory(node) : onPreview(node))}
             >
-              <FileTreeDisclosureIcon isExpanded={isExpanded} isVisible={node.kind === 'directory' && hasChildren} />
+              <FileTreeDisclosureIcon isExpanded={isExpanded} isVisible={isDirectory} />
               <FileTreeIcon iconKind={getFileIconKind(node.name, node.kind)} isExpanded={isExpanded} />
               <span>{node.name}</span>
             </button>
-            {hasChildren && isExpanded ? (
+            {isExpanded && isLoading ? (
+              <p className="file-tree__note" style={{ paddingLeft: notePaddingLeft }}>読み込み中…</p>
+            ) : null}
+            {isExpanded && !isLoading && failure ? (
+              <p className="file-tree__note file-tree__note--error" style={{ paddingLeft: notePaddingLeft }}>{failure}</p>
+            ) : null}
+            {isExpanded && !isLoading && !failure && children && children.length === 0 ? (
+              <p className="file-tree__note" style={{ paddingLeft: notePaddingLeft }}>(空)</p>
+            ) : null}
+            {isExpanded && children && children.length > 0 ? (
               <FileTree
-                nodes={node.children ?? []}
+                nodes={children}
                 depth={depth + 1}
                 expandedDirectoryPaths={expandedDirectoryPaths}
+                childrenByPath={childrenByPath}
+                loadingPaths={loadingPaths}
+                failedPaths={failedPaths}
                 onPreview={onPreview}
                 onToggleDirectory={onToggleDirectory}
               />
