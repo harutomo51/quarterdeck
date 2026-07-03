@@ -20,7 +20,7 @@ import {
   Unlink,
   Zap
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FileTreeNode } from '../../electron/fileTree/types';
 import type { GitCommit } from '../../electron/gitLog/types';
 import type { GitWorktree } from '../../electron/gitWorktree/types';
@@ -91,7 +91,10 @@ export function FilePanel({ activePaneId }: FilePanelProps): JSX.Element {
     loading: false
   });
 
+  const fetchGenerationRef = useRef(0);
+
   const resetDirectoryState = useCallback(() => {
+    fetchGenerationRef.current += 1;
     setExpandedDirectoryPaths(new Set());
     setChildrenByPath(new Map());
     setLoadingPaths(new Set());
@@ -131,6 +134,7 @@ export function FilePanel({ activePaneId }: FilePanelProps): JSX.Element {
   }, [activePaneId]);
 
   const refreshFileTree = useCallback(async () => {
+    const generation = fetchGenerationRef.current;
     const expanded = [...expandedDirectoryPaths];
     setState((current) => ({ ...current, loading: true, error: null }));
 
@@ -140,6 +144,10 @@ export function FilePanel({ activePaneId }: FilePanelProps): JSX.Element {
         bridge.list(activePaneId),
         ...expanded.map((path) => bridge.list(activePaneId, path))
       ]);
+
+      if (fetchGenerationRef.current !== generation) {
+        return;
+      }
 
       if (!rootResult.ok) {
         resetDirectoryState();
@@ -174,6 +182,9 @@ export function FilePanel({ activePaneId }: FilePanelProps): JSX.Element {
       });
     } catch (error) {
       console.error('Renderer file tree refresh failed', error);
+      if (fetchGenerationRef.current !== generation) {
+        return;
+      }
       resetDirectoryState();
       setState({
         rootPath: '',
@@ -294,10 +305,15 @@ export function FilePanel({ activePaneId }: FilePanelProps): JSX.Element {
         return;
       }
 
+      const generation = fetchGenerationRef.current;
       setLoadingPaths((current) => new Set(current).add(path));
       try {
         const result = await getFileTreeBridge().list(activePaneId, path);
+        if (fetchGenerationRef.current !== generation) {
+          return;
+        }
         if (!result.ok) {
+          console.error('Renderer file tree children loading failed', result.error);
           setFailedPaths((current) => new Map(current).set(path, result.error ?? '読み込みに失敗しました。'));
           setChildrenByPath((current) => removeDirectoryChildren(current, path));
         } else {
@@ -305,15 +321,20 @@ export function FilePanel({ activePaneId }: FilePanelProps): JSX.Element {
         }
       } catch (error) {
         console.error('Renderer file tree children loading failed', error);
+        if (fetchGenerationRef.current !== generation) {
+          return;
+        }
         setFailedPaths((current) =>
           new Map(current).set(path, error instanceof Error ? error.message : '読み込みに失敗しました。')
         );
       } finally {
-        setLoadingPaths((current) => {
-          const next = new Set(current);
-          next.delete(path);
-          return next;
-        });
+        if (fetchGenerationRef.current === generation) {
+          setLoadingPaths((current) => {
+            const next = new Set(current);
+            next.delete(path);
+            return next;
+          });
+        }
       }
     },
     [activePaneId, childrenByPath, expandedDirectoryPaths]
