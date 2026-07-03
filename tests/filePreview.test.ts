@@ -3,6 +3,7 @@ import {
   createPreviewDataUrl,
   detectHighlightLanguage,
   detectPreviewKind,
+  shouldUseDirectFilePreview,
   resolvePreviewPath
 } from '../electron/filePreview/filePreview';
 
@@ -26,6 +27,16 @@ describe('detectPreviewKind', () => {
     expect(detectPreviewKind('report.pdf')).toBe('pdf');
     expect(detectPreviewKind('docs/Spec.PDF')).toBe('pdf');
   });
+
+  it('detects common image files', () => {
+    expect(detectPreviewKind('icon.png')).toBe('image');
+    expect(detectPreviewKind('photo.jpg')).toBe('image');
+    expect(detectPreviewKind('photo.jpeg')).toBe('image');
+    expect(detectPreviewKind('animation.gif')).toBe('image');
+    expect(detectPreviewKind('graphic.webp')).toBe('image');
+    expect(detectPreviewKind('vector.svg')).toBe('image');
+    expect(detectPreviewKind('favicon.ico')).toBe('image');
+  });
 });
 
 describe('detectHighlightLanguage', () => {
@@ -37,6 +48,20 @@ describe('detectHighlightLanguage', () => {
 
   it('leaves plain text files without a highlight language', () => {
     expect(detectHighlightLanguage('notes.txt')).toBeUndefined();
+  });
+});
+
+describe('shouldUseDirectFilePreview', () => {
+  it('uses direct file loading for binary previews', () => {
+    expect(shouldUseDirectFilePreview('pdf')).toBe(true);
+    expect(shouldUseDirectFilePreview('image')).toBe(true);
+  });
+
+  it('keeps text-like previews in generated html', () => {
+    expect(shouldUseDirectFilePreview('markdown')).toBe(false);
+    expect(shouldUseDirectFilePreview('html')).toBe(false);
+    expect(shouldUseDirectFilePreview('code')).toBe(false);
+    expect(shouldUseDirectFilePreview('text')).toBe(false);
   });
 });
 

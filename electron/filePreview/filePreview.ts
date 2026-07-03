@@ -7,8 +7,6 @@ import { closeWindowOnEscape } from '../window/closeOnEscape';
 import { openInChrome, openUrlInChrome } from '../window/openInChrome';
 import type { FilePreviewKind, FilePreviewOpenResult } from './types';
 
-// HTMLプレビューの「ブラウザで開く」ボタンが window.open に渡す内部シグナル。
-// 実際に開くファイルは main 側のクロージャで保持し、renderer からは渡させない。
 const OPEN_IN_BROWSER_REQUEST = 'quarterdeck:open-in-browser';
 
 const markdown = new MarkdownIt({
@@ -44,9 +42,10 @@ const CODE_EXTENSIONS = new Set([
   '.yml'
 ]);
 
-const MAX_PREVIEW_BYTES = 1_000_000;
+const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.ico']);
 
-// PDFは内蔵ビューアーで描画するため、テキストより大きな上限を許可する。
+const MAX_PREVIEW_BYTES = 1_000_000;
+const MAX_IMAGE_PREVIEW_BYTES = 25_000_000;
 const MAX_PDF_PREVIEW_BYTES = 50_000_000;
 
 const HIGHLIGHT_LANGUAGE_BY_EXTENSION = new Map<string, string>([
@@ -84,6 +83,9 @@ export function detectPreviewKind(filePath: string): FilePreviewKind {
   if (extension === '.pdf') {
     return 'pdf';
   }
+  if (IMAGE_EXTENSIONS.has(extension)) {
+    return 'image';
+  }
   if (CODE_EXTENSIONS.has(extension)) {
     return 'code';
   }
@@ -92,6 +94,10 @@ export function detectPreviewKind(filePath: string): FilePreviewKind {
 
 export function detectHighlightLanguage(filePath: string): string | undefined {
   return HIGHLIGHT_LANGUAGE_BY_EXTENSION.get(extname(filePath).toLowerCase());
+}
+
+export function shouldUseDirectFilePreview(kind: FilePreviewKind): boolean {
+  return kind === 'pdf' || kind === 'image';
 }
 
 export function resolvePreviewPath(rootPath: string, relativePath: string): string {
@@ -117,20 +123,16 @@ export async function openFilePreview(rootPath: string, relativePath: string): P
     const fileStat = await stat(absolutePath);
 
     if (!fileStat.isFile()) {
-      return { ok: false, error: 'ファイルだけプレビューできます。' };
+      return { ok: false, error: 'Only files can be previewed.' };
     }
 
     const kind = detectPreviewKind(absolutePath);
     const isPdf = kind === 'pdf';
-    const maxBytes = isPdf ? MAX_PDF_PREVIEW_BYTES : MAX_PREVIEW_BYTES;
+    const isImage = kind === 'image';
+    const maxBytes = isPdf ? MAX_PDF_PREVIEW_BYTES : isImage ? MAX_IMAGE_PREVIEW_BYTES : MAX_PREVIEW_BYTES;
 
     if (fileStat.size > maxBytes) {
-      return {
-        ok: false,
-        error: isPdf
-          ? '50MBを超えるPDFはプレビュー対象外です。'
-          : '1MBを超えるファイルはプレビュー対象外です。'
-      };
+      return { ok: false, error: getPreviewSizeError(kind) };
     }
 
     const previewWindow = new BrowserWindow({
@@ -144,17 +146,13 @@ export async function openFilePreview(rootPath: string, relativePath: string): P
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: true,
-        // PDFはChromium内蔵ビューアーで描画する。
         plugins: isPdf
       }
     });
 
-    // プレビューウィンドウにアプリメニューを表示しない（Altでの再表示も防ぐ）。
     previewWindow.removeMenu();
     closeWindowOnEscape(previewWindow);
 
-    // ポップアップは一切開かせない。HTMLプレビューの「ブラウザで開く」ボタンだけは
-    // 専用シグナルとして受け取り、プレビュー中のファイルを Chrome で開く。
     previewWindow.webContents.setWindowOpenHandler(({ url }) => {
       if (kind === 'html' && url === OPEN_IN_BROWSER_REQUEST) {
         void openInChrome(absolutePath);
@@ -162,9 +160,6 @@ export async function openFilePreview(rootPath: string, relativePath: string): P
       return { action: 'deny' };
     });
 
-    // プレビュー内のリンク遷移を抑止する。抑止しないと srcdoc iframe 内の相対リンクが
-    // 親の data: URL に対して解決され、プレビュー文書ごと iframe に再読み込みされて
-    // ツールバーが入れ子になる。外部リンク（http/https）は Chrome で開く。
     let previewLoaded = false;
     previewWindow.webContents.once('did-finish-load', () => {
       previewLoaded = true;
@@ -179,8 +174,7 @@ export async function openFilePreview(rootPath: string, relativePath: string): P
       }
     });
 
-    if (isPdf) {
-      // バイナリのPDFはテキストとして読まず、ファイルを直接開く。
+    if (shouldUseDirectFilePreview(kind)) {
       await previewWindow.loadFile(absolutePath);
       return { ok: true };
     }
@@ -192,7 +186,7 @@ export async function openFilePreview(rootPath: string, relativePath: string): P
     console.error('Failed to open file preview', error);
     return {
       ok: false,
-      error: error instanceof Error ? error.message : 'ファイルプレビューを開けませんでした。'
+      error: error instanceof Error ? error.message : 'File preview could not be opened.'
     };
   }
 }
@@ -427,6 +421,16 @@ function highlightCode(value: string, language?: string): string {
   }
 
   return escapeHtml(value);
+}
+
+function getPreviewSizeError(kind: FilePreviewKind): string {
+  if (kind === 'pdf') {
+    return 'PDF previews are limited to 50MB.';
+  }
+  if (kind === 'image') {
+    return 'Image previews are limited to 25MB.';
+  }
+  return 'Text previews are limited to 1MB.';
 }
 
 function escapeHtml(value: string): string {
