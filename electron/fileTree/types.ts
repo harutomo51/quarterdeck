@@ -8,7 +8,6 @@ export interface FileTreeNode {
   name: string;
   relativePath: string;
   kind: FileTreeNodeKind;
-  children?: FileTreeNode[];
 }
 
 export interface FileTreeResult {

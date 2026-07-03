@@ -22,8 +22,8 @@ describe('sortFileTreeNodes', () => {
   it('sorts directories before files and then by name', () => {
     const nodes: FileTreeNode[] = [
       { name: 'README.md', relativePath: 'README.md', kind: 'file' },
-      { name: 'src', relativePath: 'src', kind: 'directory', children: [] },
-      { name: 'docs', relativePath: 'docs', kind: 'directory', children: [] },
+      { name: 'src', relativePath: 'src', kind: 'directory' },
+      { name: 'docs', relativePath: 'docs', kind: 'directory' },
       { name: 'package.json', relativePath: 'package.json', kind: 'file' }
     ];
 
@@ -77,7 +77,7 @@ describe('readFileTree (lazy)', () => {
     const result = await readFileTree(root);
     expect(result.ok).toBe(true);
     expect(result.nodes?.map((node) => node.name)).toEqual(['sub', 'a.txt']);
-    expect(result.nodes?.every((node) => node.children === undefined)).toBe(true);
+    expect(result.nodes?.every((node) => !('children' in node))).toBe(true);
   });
 
   it('lists a subdirectory with relativePath keys relative to the root', async () => {
