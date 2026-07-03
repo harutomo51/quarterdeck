@@ -109,8 +109,9 @@ export function resolvePreviewPath(rootPath: string, relativePath: string): stri
   const target = resolve(root, relativePath);
   const normalizedRoot = root.toLowerCase();
   const normalizedTarget = target.toLowerCase();
+  const normalizedRootPrefix = normalizedRoot.endsWith(sep) ? normalizedRoot : `${normalizedRoot}${sep}`;
 
-  if (normalizedTarget !== normalizedRoot && !normalizedTarget.startsWith(`${normalizedRoot}${sep}`)) {
+  if (normalizedTarget !== normalizedRoot && !normalizedTarget.startsWith(normalizedRootPrefix)) {
     throw new Error('Preview path is outside the current directory.');
   }
 

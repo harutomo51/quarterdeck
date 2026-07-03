@@ -1,6 +1,6 @@
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join, parse, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readFileTree, resolveListPath, shouldIncludeFileTreeEntry, sortFileTreeNodes } from '../electron/fileTree/fileTree';
 import type { FileTreeNode } from '../electron/fileTree/types';
@@ -54,6 +54,11 @@ describe('resolveListPath', () => {
 
   it('rejects traversal outside the root', () => {
     expect(() => resolveListPath(root, join('..', 'other'))).toThrow('現在のディレクトリの外');
+  });
+
+  it('accepts paths under a drive root working directory', () => {
+    const driveRoot = parse(resolve(tmpdir())).root;
+    expect(resolveListPath(driveRoot, 'foo')).toBe(resolve(driveRoot, 'foo'));
   });
 });
 

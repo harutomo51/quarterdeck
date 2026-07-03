@@ -1,3 +1,5 @@
+import { tmpdir } from 'node:os';
+import { parse, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   createPreviewDataUrl,
@@ -76,6 +78,11 @@ describe('resolvePreviewPath', () => {
 
   it('rejects absolute paths from the renderer', () => {
     expect(() => resolvePreviewPath('C:\\repo', 'C:\\Windows\\win.ini')).toThrow('relative');
+  });
+
+  it('accepts preview paths under a drive root working directory', () => {
+    const driveRoot = parse(resolve(tmpdir())).root;
+    expect(resolvePreviewPath(driveRoot, 'foo')).toBe(resolve(driveRoot, 'foo'));
   });
 });
 

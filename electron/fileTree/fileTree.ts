@@ -37,8 +37,9 @@ export function resolveListPath(rootPath: string, relativePath?: string): string
   const target = resolve(root, relativePath);
   const normalizedRoot = root.toLowerCase();
   const normalizedTarget = target.toLowerCase();
+  const normalizedRootPrefix = normalizedRoot.endsWith(sep) ? normalizedRoot : `${normalizedRoot}${sep}`;
 
-  if (normalizedTarget !== normalizedRoot && !normalizedTarget.startsWith(`${normalizedRoot}${sep}`)) {
+  if (normalizedTarget !== normalizedRoot && !normalizedTarget.startsWith(normalizedRootPrefix)) {
     throw new Error('ファイル一覧のパスが現在のディレクトリの外を指しています。');
   }
 
