@@ -468,9 +468,9 @@ button {
 
 .file-tree__row {
   display: grid;
-  grid-template-columns: 16px minmax(0, 1fr);
+  grid-template-columns: 14px 16px minmax(0, 1fr);
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   width: 100%;
   min-height: 24px;
   border: 0;
@@ -490,6 +490,18 @@ button {
 
 .file-tree__icon {
   color: #94b7ff;
+}
+
+.file-tree__disclosure {
+  display: grid;
+  width: 14px;
+  height: 14px;
+  place-items: center;
+  color: #8d9ab5;
+}
+
+.file-tree__disclosure--hidden {
+  visibility: hidden;
 }
 
 .file-tree__icon--folder {
@@ -544,6 +556,14 @@ button {
 
 .file-tree__row--file {
   cursor: pointer;
+}
+
+.file-tree__row--directory {
+  cursor: pointer;
+}
+
+.file-tree__row--expanded {
+  color: #f0f5ff;
 }
 
 .panel-empty,

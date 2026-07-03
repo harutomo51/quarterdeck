@@ -1,5 +1,7 @@
-import {
+﻿import {
   Braces,
+  ChevronDown,
+  ChevronRight,
   Code2,
   File,
   FileCode2,
@@ -8,6 +10,7 @@ import {
   FileText,
   Folder,
   FolderGit2,
+  FolderOpen,
   GitBranch,
   Hash,
   Lock,
@@ -25,6 +28,7 @@ import { getFileIconKind, type FileIconKind } from '../lib/fileIcon';
 import { getGitCommitDetailBridge } from '../lib/gitCommitDetailBridge';
 import { getFilePreviewBridge } from '../lib/filePreviewBridge';
 import { getFileTreeBridge } from '../lib/fileTreeBridge';
+import { pruneExpandedDirectoryPaths, toggleExpandedDirectoryPath } from '../lib/fileTreeState';
 import {
   computeGitGraphLayout,
   type GitGraphEdge,
@@ -64,6 +68,7 @@ interface GitWorktreePanelState {
 
 export function FilePanel({ activePaneId }: FilePanelProps): JSX.Element {
   const [activeTab, setActiveTab] = useState<SidePanelTab>('files');
+  const [expandedDirectoryPaths, setExpandedDirectoryPaths] = useState<Set<string>>(() => new Set());
   const [state, setState] = useState<FilePanelState>({
     rootPath: '',
     nodes: [],
@@ -104,6 +109,7 @@ export function FilePanel({ activePaneId }: FilePanelProps): JSX.Element {
         error: null,
         loading: false
       });
+      setExpandedDirectoryPaths((current) => pruneExpandedDirectoryPaths(current, result.nodes ?? []));
     } catch (error) {
       console.error('Renderer file tree loading failed', error);
       setState({
@@ -200,6 +206,14 @@ export function FilePanel({ activePaneId }: FilePanelProps): JSX.Element {
       }));
     }
   };
+
+  const toggleDirectory = useCallback((node: FileTreeNode) => {
+    if (node.kind !== 'directory') {
+      return;
+    }
+
+    setExpandedDirectoryPaths((current) => toggleExpandedDirectoryPath(current, node.relativePath));
+  }, []);
 
   const openCommitDetail = useCallback(
     async (hash: string) => {
@@ -299,7 +313,14 @@ export function FilePanel({ activePaneId }: FilePanelProps): JSX.Element {
         {!state.loading && !state.error && state.nodes.length === 0 ? (
           <p className="panel-empty">表示できるファイルがありません。</p>
         ) : null}
-        {!state.loading && !state.error ? <FileTree nodes={state.nodes} onPreview={openPreview} /> : null}
+        {!state.loading && !state.error ? (
+          <FileTree
+            nodes={state.nodes}
+            expandedDirectoryPaths={expandedDirectoryPaths}
+            onPreview={openPreview}
+            onToggleDirectory={toggleDirectory}
+          />
+        ) : null}
       </div>
         </>
       ) : activeTab === 'git' ? (
@@ -592,40 +613,79 @@ function getDecorationClassName(decoration: string): string {
 function FileTree({
   nodes,
   depth = 0,
-  onPreview
+  expandedDirectoryPaths,
+  onPreview,
+  onToggleDirectory
 }: {
   nodes: FileTreeNode[];
   depth?: number;
+  expandedDirectoryPaths: Set<string>;
   onPreview: (node: FileTreeNode) => void;
+  onToggleDirectory: (node: FileTreeNode) => void;
 }): JSX.Element {
   return (
     <ul className="file-tree">
-      {nodes.map((node) => (
-        <li className="file-tree__item" key={node.relativePath}>
-          <button
-            className={`file-tree__row file-tree__row--${node.kind}`}
-            title={node.kind === 'file' ? `${node.relativePath} をプレビュー` : node.relativePath}
-            type="button"
-            style={{ paddingLeft: `${depth * 12}px` }}
-            onClick={() => onPreview(node)}
-          >
-            <FileTreeIcon iconKind={getFileIconKind(node.name, node.kind)} />
-            <span>{node.name}</span>
-          </button>
-          {node.children && node.children.length > 0 ? (
-            <FileTree nodes={node.children} depth={depth + 1} onPreview={onPreview} />
-          ) : null}
-        </li>
-      ))}
+      {nodes.map((node) => {
+        const hasChildren = Boolean(node.children?.length);
+        const isExpanded = node.kind === 'directory' && expandedDirectoryPaths.has(node.relativePath);
+        const rowClassName = [
+          'file-tree__row',
+          `file-tree__row--${node.kind}`,
+          isExpanded ? 'file-tree__row--expanded' : ''
+        ].filter(Boolean).join(' ');
+
+        return (
+          <li className="file-tree__item" key={node.relativePath}>
+            <button
+              aria-expanded={node.kind === 'directory' ? isExpanded : undefined}
+              className={rowClassName}
+              title={node.kind === 'file' ? `${node.relativePath} をプレビュー` : node.relativePath}
+              type="button"
+              style={{ paddingLeft: `${depth * 12}px` }}
+              onClick={() => (node.kind === 'directory' ? onToggleDirectory(node) : onPreview(node))}
+            >
+              <FileTreeDisclosureIcon isExpanded={isExpanded} isVisible={node.kind === 'directory' && hasChildren} />
+              <FileTreeIcon iconKind={getFileIconKind(node.name, node.kind)} isExpanded={isExpanded} />
+              <span>{node.name}</span>
+            </button>
+            {hasChildren && isExpanded ? (
+              <FileTree
+                nodes={node.children ?? []}
+                depth={depth + 1}
+                expandedDirectoryPaths={expandedDirectoryPaths}
+                onPreview={onPreview}
+                onToggleDirectory={onToggleDirectory}
+              />
+            ) : null}
+          </li>
+        );
+      })}
     </ul>
   );
 }
 
-function FileTreeIcon({ iconKind }: { iconKind: FileIconKind }): JSX.Element {
+function FileTreeDisclosureIcon({
+  isExpanded,
+  isVisible
+}: {
+  isExpanded: boolean;
+  isVisible: boolean;
+}): JSX.Element {
+  const Icon = isExpanded ? ChevronDown : ChevronRight;
+  return (
+    <span className={isVisible ? 'file-tree__disclosure' : 'file-tree__disclosure file-tree__disclosure--hidden'}>
+      {isVisible ? <Icon size={13} /> : null}
+    </span>
+  );
+}
+
+function FileTreeIcon({ iconKind, isExpanded = false }: { iconKind: FileIconKind; isExpanded?: boolean }): JSX.Element {
   const className = `file-tree__icon file-tree__icon--${iconKind}`;
   const size = 15;
 
-  if (iconKind === 'folder') return <Folder className={className} size={size} />;
+  if (iconKind === 'folder') {
+    return isExpanded ? <FolderOpen className={className} size={size} /> : <Folder className={className} size={size} />;
+  }
   if (iconKind === 'typescript') return <Zap className={className} size={size} />;
   if (iconKind === 'javascript') return <Zap className={className} size={size} />;
   if (iconKind === 'json') return <Braces className={className} size={size} />;
