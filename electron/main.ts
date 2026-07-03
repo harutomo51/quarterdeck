@@ -150,7 +150,7 @@ function sendAppearanceCommand(command: AppearanceCommand): void {
 
 function registerIpcHandlers(): void {
   ipcMain.handle(FILE_PREVIEW_CHANNELS.open, (_event, relativePath: string, paneId?: string) => openFilePreview(ptyManager.getCurrentCwd(paneId), relativePath));
-  ipcMain.handle(FILE_TREE_CHANNELS.list, (_event, paneId?: string) => readFileTree(ptyManager.getCurrentCwd(paneId)));
+  ipcMain.handle(FILE_TREE_CHANNELS.list, (_event, paneId?: string, relativePath?: string) => readFileTree(ptyManager.getCurrentCwd(paneId), relativePath));
   ipcMain.handle(GIT_LOG_CHANNELS.list, (_event, paneId?: string) => readGitLog(ptyManager.getCurrentCwd(paneId)));
   ipcMain.handle(GIT_WORKTREE_CHANNELS.list, (_event, paneId?: string) => readGitWorktrees(ptyManager.getCurrentCwd(paneId)));
   ipcMain.handle(GIT_COMMIT_DETAIL_CHANNELS.open, (_event, hash: string, paneId?: string) => openGitCommitDetail(ptyManager.getCurrentCwd(paneId), hash));

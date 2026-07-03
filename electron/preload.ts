@@ -46,7 +46,7 @@ const terminalApi: TerminalBridgeApi = {
 };
 
 const fileTreeApi: FileTreeBridgeApi = {
-  list: (paneId?: string) => ipcRenderer.invoke(FILE_TREE_CHANNELS.list, paneId) as Promise<FileTreeResult>
+  list: (paneId?: string, relativePath?: string) => ipcRenderer.invoke(FILE_TREE_CHANNELS.list, paneId, relativePath) as Promise<FileTreeResult>
 };
 
 const filePreviewApi: FilePreviewBridgeApi = {

@@ -19,5 +19,5 @@ export interface FileTreeResult {
 }
 
 export interface FileTreeBridgeApi {
-  list: (paneId?: string) => Promise<FileTreeResult>;
+  list: (paneId?: string, relativePath?: string) => Promise<FileTreeResult>;
 }
