@@ -38,7 +38,6 @@
     ],
     "win": {
       "icon": "image/icon/application_icon.ico",
-      "signAndEditExecutable": false,
       "target": [
         "nsis",
         "portable"
